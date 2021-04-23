@@ -7,7 +7,7 @@ using UnityEngine;
 
 public class SaveTextureData
 {
-    // public int texIndex = -1;
+    public int texIndex = -1;
     public int referenceCount = 0;
     public Rect rect;
 }

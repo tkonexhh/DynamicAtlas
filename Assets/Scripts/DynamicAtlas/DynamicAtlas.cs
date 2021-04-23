@@ -4,16 +4,16 @@ using UnityEngine;
 
 public class DynamicAtlas
 {
-
     private int m_Width = 0;
     private int m_Height = 0;
     private int m_Padding = 3;
-    private float m_UVXDiv, m_UVYDiv;
+    // private float m_UVXDiv, m_UVYDiv;
     private DynamicAtlasGroup m_DynamicAtlasGroup;
 
     //-------
     private Color32[] m_TempColor;
-    private DynamicAtlasPage m_Page;
+    // private DynamicAtlasPage m_Page;
+    private List<DynamicAtlasPage> m_PageList = new List<DynamicAtlasPage>();
     private List<GetTextureData> m_GetTextureTaskList = new List<GetTextureData>();
 
     private Dictionary<string, SaveTextureData> m_UsingTexture = new Dictionary<string, SaveTextureData>();
@@ -31,15 +31,16 @@ public class DynamicAtlas
 
         m_Width = length;
         m_Height = length;
-        m_UVXDiv = 1 / m_Width;
-        m_UVYDiv = 1 / m_Height;
-        CreateNewAtlas();
+        // m_UVXDiv = 1 / m_Width;
+        // m_UVYDiv = 1 / m_Height;
+        CreateNewPage();
     }
 
-    void CreateNewAtlas()
+    DynamicAtlasPage CreateNewPage()
     {
-        m_Page = new DynamicAtlasPage(m_Width, m_Height, m_Padding, m_TempColor);
-
+        var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height, m_Padding, m_TempColor);
+        m_PageList.Add(page);
+        return page;
     }
 
     #region Public Func
@@ -75,7 +76,8 @@ public class DynamicAtlas
             {
                 SaveTextureData textureData = m_UsingTexture[texture.name];
                 textureData.referenceCount++;
-                Texture2D tex2D = m_Page.texture;//m_Tex2DLst[textureData.texIndex];
+                Texture2D tex2D = m_PageList[textureData.texIndex].texture;
+                // Texture2D tex2D = m_Page.texture;//m_Tex2DLst[textureData.texIndex];
                 callBack(tex2D, textureData.rect);
             }
 
@@ -98,7 +100,8 @@ public class DynamicAtlas
             {
                 SaveTextureData data = m_UsingTexture[name];
                 data.referenceCount++;
-                Texture2D tex2D = m_Page.texture;//m_Tex2DLst[data.texIndex];
+                Texture2D tex2D = m_PageList[data.texIndex].texture;
+                // Texture2D tex2D = m_Page.texture;//m_Tex2DLst[data.texIndex];
                 callback(tex2D, data.rect);
             }
         }
@@ -116,7 +119,8 @@ public class DynamicAtlas
             data.referenceCount--;
             if (data.referenceCount <= 0)//引用计数0
             {
-                m_Page.RemoveTexture(data.rect);
+                // m_Page.RemoveTexture(data.rect);
+                m_PageList[data.texIndex].RemoveTexture(data.rect);
 
                 m_UsingTexture.Remove(name);
                 DynamicAtlasMgr.S.ReleaseSaveTextureData(data);
@@ -148,8 +152,9 @@ public class DynamicAtlas
             return;
         }
 
-        // int index = 0;
-        IntegerRectangle useArea = InsertArea(texture2D.width, texture2D.height);
+        int index = 0;
+        IntegerRectangle useArea = InsertArea(texture2D.width, texture2D.height, out index);
+        Debug.LogError(name + ":Index:" + index);
         Debug.Assert(useArea != null);
         if (useArea == null)
         {
@@ -157,11 +162,11 @@ public class DynamicAtlas
         }
 
         Rect uv = new Rect((useArea.x), (useArea.y), texture2D.width, texture2D.height);
-
-        m_Page.AddTexture(useArea.x, useArea.y, texture2D);
+        m_PageList[index].AddTexture(useArea.x, useArea.y, texture2D);
+        // m_Page.AddTexture(useArea.x, useArea.y, texture2D);
 
         SaveTextureData saveTextureData = DynamicAtlasMgr.S.AllocateSaveTextureData();
-        // saveTextureData.texIndex = index;
+        saveTextureData.texIndex = index;
         saveTextureData.rect = uv;
         m_UsingTexture[name] = saveTextureData;
 
@@ -174,7 +179,8 @@ public class DynamicAtlas
 
                 if (task != null)
                 {
-                    Texture2D dstTex = m_Page.texture;//m_Tex2DLst[index];
+                    // Texture2D dstTex = m_Page.texture;//m_Tex2DLst[index];
+                    Texture2D dstTex = m_PageList[index].texture;
                     task.callback(dstTex, uv);
                 }
             }
@@ -183,16 +189,34 @@ public class DynamicAtlas
         }
     }
 
-
-    private IntegerRectangle InsertArea(int width, int height)
+    private IntegerRectangle InsertArea(int width, int height, out int index)
     {
         IntegerRectangle result = null;
-        var freeArea = m_Page.GetFreeArea(width, height);
+
+        IntegerRectangle freeArea = null;
+        DynamicAtlasPage page = null;
+        for (int i = 0; i < m_PageList.Count; i++)
+        {
+            var tempArea = m_PageList[i].GetFreeArea(width, height);
+            if (tempArea != null)
+            {
+                page = m_PageList[i];
+                freeArea = tempArea;
+
+                break;
+            }
+        }
+
         if (freeArea == null)
         {
             Debug.LogError("No Free Area----Create New Page");
-            return null;
+            page = CreateNewPage();
+            index = page.index;
+            freeArea = page.freeAreasList[0];
+            page.RemoveFreeArea(freeArea);
+            return freeArea;
         }
+
         bool justRightSize = false;
         if (justRightSize == false)
         {
@@ -209,9 +233,11 @@ public class DynamicAtlas
         {
             result = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, freeArea.y, freeArea.width, freeArea.height);
         }
-        m_Page.RemoveFreeArea(freeArea);
+        page.RemoveFreeArea(freeArea);
+        index = page.index;
         return result;
     }
+
 
     private void GenerateDividedAreasTopFirst(IntegerRectangle divider, IntegerRectangle freeArea)
     {
@@ -219,14 +245,14 @@ public class DynamicAtlas
         if (rightDelta > 0)
         {
             IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, divider.y, rightDelta, freeArea.height);
-            m_Page.AddFreeArea(area);
+            m_PageList[0].AddFreeArea(area);
         }
 
         int topDelta = freeArea.top - divider.top;
         if (topDelta > 0)
         {
             IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.x, divider.top, divider.width, topDelta);
-            m_Page.AddFreeArea(area);
+            m_PageList[0].AddFreeArea(area);
         }
     }
 
@@ -243,10 +269,13 @@ public class DynamicAtlasPage
     private int m_Height;
     private int m_Padding;
 
+    public int index => m_Index;
     public Texture2D texture => m_Texture;
+    public List<IntegerRectangle> freeAreasList => m_FreeAreasList;
 
-    public DynamicAtlasPage(int width, int height, int padding, Color32[] tempColor)
+    public DynamicAtlasPage(int index, int width, int height, int padding, Color32[] tempColor)
     {
+        m_Index = index;
         m_Width = width;
         m_Height = height;
         m_Padding = padding;
@@ -255,6 +284,7 @@ public class DynamicAtlasPage
         m_Texture.filterMode = FilterMode.Bilinear;
         m_Texture.SetPixels32(0, 0, width, height, tempColor);
         m_Texture.Apply(false);
+        m_Texture.name = string.Format("DynamicAtlas-{0}-{1}:{2}", width, height, index);
 
         var area = DynamicAtlasMgr.S.AllocateIntegerRectangle(0, 0, m_Width, m_Height);
         m_FreeAreasList.Add(area);
