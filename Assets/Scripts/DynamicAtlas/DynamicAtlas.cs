@@ -7,6 +7,7 @@ public class DynamicAtlas
     private int m_Width = 0;
     private int m_Height = 0;
     private int m_Padding = 3;
+    // private bool m_TopFirst = false;//图集放置顺序
     // private float m_UVXDiv, m_UVYDiv;
     private DynamicAtlasGroup m_DynamicAtlasGroup;
 
@@ -158,6 +159,7 @@ public class DynamicAtlas
         Debug.Assert(useArea != null);
         if (useArea == null)
         {
+            Debug.LogError("No Area");
             return;
         }
 
@@ -211,10 +213,10 @@ public class DynamicAtlas
         {
             Debug.LogError("No Free Area----Create New Page");
             page = CreateNewPage();
-            index = page.index;
-            freeArea = page.freeAreasList[0];
-            page.RemoveFreeArea(freeArea);
-            return freeArea;
+            freeArea = page.freeAreasList[0];//直接拿到空白区域
+            // page.RemoveFreeArea(freeArea);
+            // index = page.index;
+            // return freeArea;
         }
 
         bool justRightSize = false;
@@ -226,7 +228,14 @@ public class DynamicAtlas
             int resultHeight = paddedHeight > freeArea.height ? freeArea.height : paddedHeight;
 
             result = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, freeArea.y, resultWidth, resultHeight);
-            GenerateDividedAreasTopFirst(result, freeArea);
+            if (DynamicAtlasConfig.kTopFirst)
+            {
+                GenerateDividedAreasTopFirst(page, result, freeArea);
+            }
+            else
+            {
+                GenerateDividedAreasRightFirst(page, result, freeArea);
+            }
 
         }
         else
@@ -238,21 +247,37 @@ public class DynamicAtlas
         return result;
     }
 
-
-    private void GenerateDividedAreasTopFirst(IntegerRectangle divider, IntegerRectangle freeArea)
+    private void GenerateDividedAreasTopFirst(DynamicAtlasPage page, IntegerRectangle divider, IntegerRectangle freeArea)
     {
         int rightDelta = freeArea.right - divider.right;
         if (rightDelta > 0)
         {
             IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, divider.y, rightDelta, freeArea.height);
-            m_PageList[0].AddFreeArea(area);
+            page.AddFreeArea(area);
         }
 
         int topDelta = freeArea.top - divider.top;
         if (topDelta > 0)
         {
-            IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.x, divider.top, divider.width, topDelta);
-            m_PageList[0].AddFreeArea(area);
+            IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, divider.top, freeArea.width, topDelta);
+            page.AddFreeArea(area);
+        }
+    }
+
+    private void GenerateDividedAreasRightFirst(DynamicAtlasPage page, IntegerRectangle divider, IntegerRectangle freeArea)
+    {
+        int rightDelta = freeArea.right - divider.right;
+        if (rightDelta > 0)
+        {
+            IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, divider.y, rightDelta, freeArea.height);
+            page.AddFreeArea(area);
+        }
+
+        int topDelta = freeArea.top - divider.top;
+        if (topDelta > 0)
+        {
+            IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, divider.top, divider.width, topDelta);
+            page.AddFreeArea(area);
         }
     }
 
@@ -284,7 +309,7 @@ public class DynamicAtlasPage
         m_Texture.filterMode = FilterMode.Bilinear;
         m_Texture.SetPixels32(0, 0, width, height, tempColor);
         m_Texture.Apply(false);
-        m_Texture.name = string.Format("DynamicAtlas-{0}-{1}:{2}", width, height, index);
+        m_Texture.name = string.Format("DynamicAtlas-{0}*{1}-{2}", width, height, index);
 
         var area = DynamicAtlasMgr.S.AllocateIntegerRectangle(0, 0, m_Width, m_Height);
         m_FreeAreasList.Add(area);
@@ -332,21 +357,39 @@ public class DynamicAtlasPage
         IntegerRectangle tempArea = null;
         foreach (var area in m_FreeAreasList)
         {
-            bool isFitWidth = paddedWidth <= area.width;
-            bool isFitHeight = paddedHeight <= area.height;
+            bool isJustFullWidth = (width == area.width || width == m_Width);
+            bool isJustFullHeight = (height == area.height || width == m_Height);
+            bool isFitWidth = isJustFullWidth || paddedWidth <= area.width;
+            bool isFitHeight = isJustFullHeight || paddedHeight <= area.height;
             if (isFitHeight && isFitWidth)
             {
-                // if (tempArea != null)
-                // {
-                //     if (tempArea.height > area.height)
-                //     {
-                //         tempArea = area;
-                //     }
-                // }
-                // else
+                if (isJustFullHeight && isJustFullWidth)
+                {
+                    return area;
+                }
+
+                if (tempArea != null)
+                {
+                    if (DynamicAtlasConfig.kTopFirst)
+                    {
+                        if (tempArea.height > area.height)
+                        {
+                            tempArea = area;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (tempArea.width > area.width)
+                        {
+                            tempArea = area;
+                            break;
+                        }
+                    }
+                }
+                else
                 {
                     tempArea = area;
-                    break;
                 }
 
             }
