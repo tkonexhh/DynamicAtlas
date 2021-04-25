@@ -4,22 +4,25 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.UI;
 
-[CustomEditor(typeof(DynamicImage))]
-public class DynamicImageEditor : ImageEditor
+namespace GFrame
 {
-    private DynamicImage m_Target;
-
-    protected override void OnEnable()
+    [CustomEditor(typeof(DynamicImage))]
+    public class DynamicImageEditor : ImageEditor
     {
-        base.OnEnable();
-        m_Target = (DynamicImage)target;
-    }
+        private DynamicImage m_Target;
 
-    public override void OnInspectorGUI()
-    {
-        base.OnInspectorGUI();
-        GUILayout.Space(5);
-        EditorGUILayout.LabelField("--------------------------------------------------------------------------------------------------------------------");
-        m_Target.atlasGroup = (DynamicAtlasGroup)EditorGUILayout.EnumPopup("Group", m_Target.atlasGroup);
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            m_Target = (DynamicImage)target;
+        }
+
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("--------------------------------------------------------------------------------------------------------------------");
+            m_Target.atlasGroup = (DynamicAtlasGroup)EditorGUILayout.EnumPopup("Group", m_Target.atlasGroup);
+        }
     }
 }

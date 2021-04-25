@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using GFrame;
 
 public class GetImageTest : MonoBehaviour
 {
