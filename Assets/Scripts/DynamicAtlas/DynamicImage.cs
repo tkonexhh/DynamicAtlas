@@ -9,10 +9,11 @@ public class DynamicImage : Image
     private DynamicAtlasGroup m_Group;
     private DynamicAtlas m_Atlas;
     private Sprite m_DefaultSprite;
+    private string m_SpriteName;
 
-    protected override void Start()
+    protected override void Awake()
     {
-        base.Start();
+        base.Awake();
 #if UNITY_EDITOR
         //在编辑器下 退出playmode会再走一次start
         if (Application.isPlaying)
@@ -49,15 +50,14 @@ public class DynamicImage : Image
     private void SetImage()
     {
         m_DefaultSprite = sprite;
+        m_SpriteName = mainTexture.name;
         m_Atlas.SetTexture(mainTexture, OnGetImageCallBack);
     }
 
 
-
-
     private void OnGetImageCallBack(Texture tex, Rect rect)
     {
-        Debug.LogError(111);
+        // Debug.LogError(111);
         int length = (int)m_Group;
         Rect spriteRect = rect;
         // spriteRect.x *= length;
@@ -65,7 +65,13 @@ public class DynamicImage : Image
         // spriteRect.width *= length;
         // spriteRect.height *= length;
 
-        sprite = Sprite.Create((Texture2D)tex, spriteRect, m_DefaultSprite.pivot, m_DefaultSprite.pixelsPerUnit, 1, SpriteMeshType.Tight, m_DefaultSprite.border);
+        if (m_DefaultSprite != null)
+            sprite = Sprite.Create((Texture2D)tex, spriteRect, m_DefaultSprite.pivot, m_DefaultSprite.pixelsPerUnit, 1, SpriteMeshType.Tight, m_DefaultSprite.border);
+        else
+        {
+            sprite = Sprite.Create((Texture2D)tex, spriteRect, new Vector2(spriteRect.width * .5f, spriteRect.height * .5f), 100, 1, SpriteMeshType.Tight, new Vector4(0, 0, 0, 0));
+            m_DefaultSprite = sprite;
+        }
     }
 
 
@@ -77,8 +83,25 @@ public class DynamicImage : Image
         {
             SetGroup(atlasGroup);
         }
+        if (!string.IsNullOrEmpty(m_SpriteName) && m_SpriteName.Equals(name))
+        {
+            return;
+        }
 
-        // m_Atlas.GetImage();
+        m_SpriteName = name;
+        m_Atlas.GetTeture(name, OnGetImageCallBack);
+    }
+
+    public void RemoveImage(bool clearRange = false)
+    {
+        if (m_Atlas == null)//并没有使用图集
+            return;
+
+        if (!string.IsNullOrEmpty(m_SpriteName))
+        {
+            m_Atlas.RemoveTexture(m_SpriteName, clearRange);
+        }
+
     }
     #endregion
 }

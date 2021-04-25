@@ -78,7 +78,6 @@ public class DynamicAtlas
                 SaveTextureData textureData = m_UsingTexture[texture.name];
                 textureData.referenceCount++;
                 Texture2D tex2D = m_PageList[textureData.texIndex].texture;
-                // Texture2D tex2D = m_Page.texture;//m_Tex2DLst[textureData.texIndex];
                 callBack(tex2D, textureData.rect);
             }
 
@@ -102,9 +101,25 @@ public class DynamicAtlas
                 SaveTextureData data = m_UsingTexture[name];
                 data.referenceCount++;
                 Texture2D tex2D = m_PageList[data.texIndex].texture;
-                // Texture2D tex2D = m_Page.texture;//m_Tex2DLst[data.texIndex];
                 callback(tex2D, data.rect);
             }
+        }
+        else
+        {
+            //FIXME! 这里需要改成自己的加载方式
+            var texture = Resources.Load<Texture2D>(name);
+            //---------------
+            if (texture == null)
+            {
+                Debug.LogError("Failed To load Texture:" + name);
+            }
+
+            GetTextureData data = DynamicAtlasMgr.S.AllocateGetTextureData();
+            data.name = texture.name;
+            data.callback = callback;
+            m_GetTextureTaskList.Add(data);
+
+            OnRenderTexture(data.name, texture);
         }
     }
 
@@ -112,7 +127,7 @@ public class DynamicAtlas
     /// Image组件用完之后
     /// </summary>
     /// <param name="name"></param>
-    public void RemoveImage(string name)
+    public void RemoveTexture(string name, bool clearRange = false)
     {
         if (m_UsingTexture.ContainsKey(name))
         {
@@ -120,8 +135,11 @@ public class DynamicAtlas
             data.referenceCount--;
             if (data.referenceCount <= 0)//引用计数0
             {
-                // m_Page.RemoveTexture(data.rect);
-                m_PageList[data.texIndex].RemoveTexture(data.rect);
+                if (clearRange)
+                {
+                    Debug.Log("Remove Texture:" + name);
+                    m_PageList[data.texIndex].RemoveTexture(data.rect);
+                }
 
                 m_UsingTexture.Remove(name);
                 DynamicAtlasMgr.S.ReleaseSaveTextureData(data);
@@ -155,8 +173,8 @@ public class DynamicAtlas
 
         int index = 0;
         IntegerRectangle useArea = InsertArea(texture2D.width, texture2D.height, out index);
-        Debug.LogError(name + ":Index:" + index);
-        Debug.Assert(useArea != null);
+        // Debug.LogError(name + ":Index:" + index);
+
         if (useArea == null)
         {
             Debug.LogError("No Area");
@@ -214,9 +232,9 @@ public class DynamicAtlas
             Debug.LogError("No Free Area----Create New Page");
             page = CreateNewPage();
             freeArea = page.freeAreasList[0];//直接拿到空白区域
-            // page.RemoveFreeArea(freeArea);
-            // index = page.index;
-            // return freeArea;
+                                             // page.RemoveFreeArea(freeArea);
+                                             // index = page.index;
+                                             // return freeArea;
         }
 
         bool justRightSize = false;
