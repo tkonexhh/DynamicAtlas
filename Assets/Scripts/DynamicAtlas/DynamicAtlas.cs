@@ -9,12 +9,10 @@ namespace GFrame
         private int m_Width = 0;
         private int m_Height = 0;
         private int m_Padding = 3;
-        // private bool m_TopFirst = false;//图集放置顺序
-        // private float m_UVXDiv, m_UVYDiv;
-        private DynamicAtlasGroup m_DynamicAtlasGroup;
+        // private DynamicAtlasGroup m_DynamicAtlasGroup;
 
         //-------
-        private Color32[] m_TempColor;
+        //private Color32[] m_TempColor;
         // private DynamicAtlasPage m_Page;
         private List<DynamicAtlasPage> m_PageList = new List<DynamicAtlasPage>();
         private List<GetTextureData> m_GetTextureTaskList = new List<GetTextureData>();
@@ -23,25 +21,23 @@ namespace GFrame
 
         public DynamicAtlas(DynamicAtlasGroup group)
         {
-            m_DynamicAtlasGroup = group;
+            // m_DynamicAtlasGroup = group;
 
             int length = (int)group;
-            m_TempColor = new Color32[length * length];
-            for (int i = 0; i < m_TempColor.Length; i++)
-            {
-                m_TempColor[i] = Color.clear;
-            }
+            // m_TempColor = new Color32[length * length];
+            // for (int i = 0; i < m_TempColor.Length; i++)
+            // {
+            //     m_TempColor[i] = Color.clear;
+            // }
 
             m_Width = length;
             m_Height = length;
-            // m_UVXDiv = 1 / m_Width;
-            // m_UVYDiv = 1 / m_Height;
             CreateNewPage();
         }
 
         DynamicAtlasPage CreateNewPage()
         {
-            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height, m_Padding, m_TempColor);
+            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height, m_Padding);//, m_TempColor);
             m_PageList.Add(page);
             return page;
         }
@@ -114,6 +110,8 @@ namespace GFrame
                 if (texture == null)
                 {
                     Debug.LogError("Failed To load Texture:" + name);
+                    callback(null, new Rect(0, 0, 0, 0));
+                    return;
                 }
 
                 GetTextureData data = DynamicAtlasMgr.S.AllocateGetTextureData();
@@ -219,12 +217,11 @@ namespace GFrame
             DynamicAtlasPage page = null;
             for (int i = 0; i < m_PageList.Count; i++)
             {
-                var tempArea = m_PageList[i].GetFreeArea(width, height);
-                if (tempArea != null)
+                int fIndex = m_PageList[i].FindFreeArea(width, height);
+                if (fIndex >= 0)
                 {
                     page = m_PageList[i];
-                    freeArea = tempArea;
-
+                    freeArea = m_PageList[i].freeAreasList[fIndex];
                     break;
                 }
             }
@@ -233,10 +230,11 @@ namespace GFrame
             {
                 Debug.LogError("No Free Area----Create New Page");
                 page = CreateNewPage();
-                freeArea = page.freeAreasList[0];//直接拿到空白区域
-                                                 // page.RemoveFreeArea(freeArea);
-                                                 // index = page.index;
-                                                 // return freeArea;
+                freeArea = page.freeAreasList[0];
+                //直接拿到空白区域
+                // page.RemoveFreeArea(freeArea);
+                // index = page.index;
+                // return freeArea;
             }
 
             bool justRightSize = false;
@@ -318,7 +316,7 @@ namespace GFrame
         public Texture2D texture => m_Texture;
         public List<IntegerRectangle> freeAreasList => m_FreeAreasList;
 
-        public DynamicAtlasPage(int index, int width, int height, int padding, Color32[] tempColor)
+        public DynamicAtlasPage(int index, int width, int height, int padding)//, Color32[] tempColor)
         {
             m_Index = index;
             m_Width = width;
@@ -327,7 +325,7 @@ namespace GFrame
 
             m_Texture = new Texture2D(width, height, DynamicAtlasConfig.kTextureFormat, false, true);
             m_Texture.filterMode = FilterMode.Bilinear;
-            m_Texture.SetPixels32(0, 0, width, height, tempColor);
+            // m_Texture.SetPixels32(0, 0, width, height, tempColor);
             m_Texture.Apply(false);
             m_Texture.name = string.Format("DynamicAtlas-{0}*{1}-{2}", width, height, index);
 
@@ -363,60 +361,51 @@ namespace GFrame
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        public IntegerRectangle GetFreeArea(int width, int height)
+        public int FindFreeArea(int width, int height)
         {
             if (width > m_Width || height > m_Height)
             {
                 Debug.LogError("To Large Texture for atlas");
-                return null;
+                return -1;
             }
+            IntegerRectangle best = DynamicAtlasMgr.S.AllocateIntegerRectangle(m_Width + 1, m_Height + 1, 0, 0);
+            int index = -1;
 
             int paddedWidth = width + m_Padding;
             int paddedHeight = height + m_Padding;
 
-            IntegerRectangle tempArea = null;
-            foreach (var area in m_FreeAreasList)
+            // IntegerRectangle tempArea = null;
+            for (int i = m_FreeAreasList.Count - 1; i >= 0; i--)
             {
-                bool isJustFullWidth = (width == area.width || width == m_Width);
-                bool isJustFullHeight = (height == area.height || width == m_Height);
-                bool isFitWidth = isJustFullWidth || paddedWidth <= area.width;
-                bool isFitHeight = isJustFullHeight || paddedHeight <= area.height;
-                if (isFitHeight && isFitWidth)
+                IntegerRectangle free = m_FreeAreasList[i];
+
+                if (free.x < paddedWidth || free.y < paddedHeight)
                 {
-                    if (isJustFullHeight && isJustFullWidth)
+                    if (free.x < best.x && paddedWidth <= free.width && paddedHeight <= free.height)
                     {
-                        return area;
+                        index = i;
+                        if ((paddedWidth == free.width && free.width <= free.height && free.right < m_Width) || (paddedHeight == free.height && free.height <= free.width))
+                            break;
+                        best = free;
                     }
-
-                    // if (tempArea != null)
-                    // {
-                    //     if (DynamicAtlasConfig.kTopFirst)
-                    //     {
-                    //         if (tempArea.height > area.height)
-                    //         {
-                    //             tempArea = area;
-                    //             break;
-                    //         }
-                    //     }
-                    //     else
-                    //     {
-                    //         if (tempArea.width > area.width)
-                    //         {
-                    //             tempArea = area;
-                    //             break;
-                    //         }
-                    //     }
-                    // }
-                    // else
+                    else
                     {
-                        tempArea = area;
-                    }
+                        // Outside the current packed area, no padding required
+                        if (free.x < best.x && width <= free.width && height <= free.height)
+                        {
+                            index = i;
+                            if ((width == free.width && free.width <= free.height && free.right < m_Width) || (height == free.height && free.height <= free.width))
+                                break;
 
+                            best = free;
+                        }
+                    }
                 }
             }
 
-            return tempArea;
+            return index;
         }
+
 
 
         public void AddFreeArea(IntegerRectangle area)
