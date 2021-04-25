@@ -23,30 +23,33 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. *
  *
  */
-namespace DaVikingCode.RectanglePacking {
+namespace DaVikingCode.RectanglePacking
+{
 
-	/**
+    /**
      * Class used to store rectangles values inside rectangle packer
      * ID parameter needed to connect rectangle with the originally inserted rectangle
      */
-	public class IntegerRectangle {
+    public class IntegerRectangle
+    {
 
-		public int x;
-		public int y;
-		public int width;
-		public int height;
-		public int right;
-		public int bottom;
-		public int id;
+        public int x;
+        public int y;
+        public int width;
+        public int height;
+        public int right;
+        public int top;
+        public int id;
 
-		public IntegerRectangle(int x = 0, int y = 0, int width = 0, int height = 0) {
+        public IntegerRectangle(int x = 0, int y = 0, int width = 0, int height = 0)
+        {
 
-			this.x = x;
-			this.y = y;
-			this.width = width;
-			this.height = height;
-			this.right = x + width;
-			this.bottom = y + height;
-		}
-	}
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.right = x + width;
+            this.top = y + height;
+        }
+    }
 }

@@ -6,30 +6,18 @@ namespace GFrame
 {
     public class DynamicAtlas
     {
-        private int m_Width = 0;
-        private int m_Height = 0;
+        private int m_Width, m_Height = 0;
         private int m_Padding = 3;
-        // private DynamicAtlasGroup m_DynamicAtlasGroup;
+        private int m_PackedWidth, m_PackedHeight = 0;
 
-        //-------
-        //private Color32[] m_TempColor;
-        // private DynamicAtlasPage m_Page;
         private List<DynamicAtlasPage> m_PageList = new List<DynamicAtlasPage>();
         private List<GetTextureData> m_GetTextureTaskList = new List<GetTextureData>();
-
         private Dictionary<string, SaveTextureData> m_UsingTexture = new Dictionary<string, SaveTextureData>();
+
 
         public DynamicAtlas(DynamicAtlasGroup group)
         {
-            // m_DynamicAtlasGroup = group;
-
             int length = (int)group;
-            // m_TempColor = new Color32[length * length];
-            // for (int i = 0; i < m_TempColor.Length; i++)
-            // {
-            //     m_TempColor[i] = Color.clear;
-            // }
-
             m_Width = length;
             m_Height = length;
             CreateNewPage();
@@ -37,7 +25,7 @@ namespace GFrame
 
         DynamicAtlasPage CreateNewPage()
         {
-            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height, m_Padding);//, m_TempColor);
+            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height);//, m_TempColor);
             m_PageList.Add(page);
             return page;
         }
@@ -183,7 +171,6 @@ namespace GFrame
 
             Rect uv = new Rect((useArea.x), (useArea.y), texture2D.width, texture2D.height);
             m_PageList[index].AddTexture(useArea.x, useArea.y, texture2D);
-            // m_Page.AddTexture(useArea.x, useArea.y, texture2D);
 
             SaveTextureData saveTextureData = DynamicAtlasMgr.S.AllocateSaveTextureData();
             saveTextureData.texIndex = index;
@@ -196,7 +183,6 @@ namespace GFrame
                 if (task.name.Equals(name))
                 {
                     m_UsingTexture[name].referenceCount++;
-
                     if (task != null)
                     {
                         // Texture2D dstTex = m_Page.texture;//m_Tex2DLst[index];
@@ -212,16 +198,15 @@ namespace GFrame
         private IntegerRectangle InsertArea(int width, int height, out int index)
         {
             IntegerRectangle result = null;
-
             IntegerRectangle freeArea = null;
             DynamicAtlasPage page = null;
             for (int i = 0; i < m_PageList.Count; i++)
             {
-                int fIndex = m_PageList[i].FindFreeArea(width, height);
+                int fIndex = m_PageList[i].GetFreeAreaIndex(width, height, m_Padding, m_PackedWidth, m_PackedHeight);
                 if (fIndex >= 0)
                 {
                     page = m_PageList[i];
-                    freeArea = m_PageList[i].freeAreasList[fIndex];
+                    freeArea = page.freeAreasList[fIndex];
                     break;
                 }
             }
@@ -231,74 +216,133 @@ namespace GFrame
                 Debug.LogError("No Free Area----Create New Page");
                 page = CreateNewPage();
                 freeArea = page.freeAreasList[0];
-                //直接拿到空白区域
-                // page.RemoveFreeArea(freeArea);
-                // index = page.index;
-                // return freeArea;
             }
 
-            bool justRightSize = false;
-            if (justRightSize == false)
-            {
-                int paddedWidth = width + m_Padding;
-                int paddedHeight = height + m_Padding;
-                int resultWidth = paddedWidth > freeArea.width ? freeArea.width : paddedWidth;
-                int resultHeight = paddedHeight > freeArea.height ? freeArea.height : paddedHeight;
+            result = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, freeArea.y, width, height);
+            GenerateNewFreeAreas(result, page);
 
-                result = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, freeArea.y, resultWidth, resultHeight);
-                if (DynamicAtlasConfig.kTopFirst)
-                {
-                    GenerateDividedAreasTopFirst(page, result, freeArea);
-                }
-                else
-                {
-                    GenerateDividedAreasRightFirst(page, result, freeArea);
-                }
-
-            }
-            else
-            {
-                result = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, freeArea.y, freeArea.width, freeArea.height);
-            }
             page.RemoveFreeArea(freeArea);
             index = page.index;
             return result;
         }
 
-        private void GenerateDividedAreasTopFirst(DynamicAtlasPage page, IntegerRectangle divider, IntegerRectangle freeArea)
+        private void GenerateNewFreeAreas(IntegerRectangle target, DynamicAtlasPage page)
         {
-            int rightDelta = freeArea.right - divider.right;
-            if (rightDelta > 0)
+            int x = target.x;
+            int y = target.y;
+            int right = target.right + 1 + m_Padding;
+            int top = target.top + 1 + m_Padding;
+
+            IntegerRectangle targetWithPadding = null;
+            if (m_Padding == 0)
+                targetWithPadding = target;
+
+            List<IntegerRectangle> results = new List<IntegerRectangle>();
+            for (int i = page.freeAreasList.Count - 1; i >= 0; i--)
             {
-                IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, divider.y, rightDelta, divider.height);
-                page.AddFreeArea(area);
+                IntegerRectangle area = page.freeAreasList[i];
+                if (!(x >= area.right || right <= area.x || y >= area.top || top <= area.y))
+                {
+                    // UnityEngine.Debug.LogError(target.x + ":" + area.x);
+                    if (targetWithPadding == null)
+                        targetWithPadding = DynamicAtlasMgr.S.AllocateIntegerRectangle(target.x, target.y, target.width + m_Padding, target.height + m_Padding);
+
+                    GenerateDividedAreas(targetWithPadding, area, results);
+                    IntegerRectangle topOfStack = page.freeAreasList.Pop();
+                    if (i < page.freeAreasList.Count)
+                    {
+                        // Move the one on the top to the freed position
+                        page.freeAreasList[i] = topOfStack;
+                    }
+                }
             }
 
-            int topDelta = freeArea.top - divider.top;
-            if (topDelta > 0)
+            if (targetWithPadding != null && targetWithPadding != target)
+                DynamicAtlasMgr.S.ReleaseIntegerRectangle(targetWithPadding);
+
+            FilterSelfSubAreas(results);
+            while (results.Count > 0)
             {
-                IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(freeArea.x, divider.top, freeArea.width, topDelta);
-                page.AddFreeArea(area);
+                var free = results.Pop();
+                page.AddFreeArea(free);
             }
+
+            if (target.right > m_PackedWidth)
+                m_PackedWidth = target.right;
+
+            if (target.top > m_PackedHeight)
+                m_PackedHeight = target.top;
         }
 
-        private void GenerateDividedAreasRightFirst(DynamicAtlasPage page, IntegerRectangle divider, IntegerRectangle freeArea)
+
+
+        private void GenerateDividedAreas(IntegerRectangle divider, IntegerRectangle area, List<IntegerRectangle> results)
         {
-            int rightDelta = freeArea.right - divider.right;
+            int count = 0;
+
+            int rightDelta = area.right - divider.right;
             if (rightDelta > 0)
             {
-                IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, divider.y, rightDelta, freeArea.height);
-                page.AddFreeArea(area);
+                results.Add(DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.right, area.y, rightDelta, area.height));
+                count++;
             }
 
-            int topDelta = freeArea.top - divider.top;
+            int leftDelta = divider.x - area.x;
+            if (leftDelta > 0)
+            {
+                results.Add(DynamicAtlasMgr.S.AllocateIntegerRectangle(area.x, area.y, leftDelta, area.height));
+                count++;
+            }
+
+            int bottomDelta = area.top - divider.top;
+            if (bottomDelta > 0)
+            {
+                results.Add(DynamicAtlasMgr.S.AllocateIntegerRectangle(area.x, divider.top, area.width, bottomDelta));
+                count++;
+            }
+
+            int topDelta = divider.y - area.y;
             if (topDelta > 0)
             {
-                IntegerRectangle area = DynamicAtlasMgr.S.AllocateIntegerRectangle(divider.x, divider.top, divider.width, topDelta);
-                page.AddFreeArea(area);
+                results.Add(DynamicAtlasMgr.S.AllocateIntegerRectangle(area.x, area.y, area.width, topDelta));
+                count++;
             }
+
+            if (count == 0 && (divider.width < area.width || divider.height < area.height))
+            {
+                // Only touching the area, store the area itself
+                results.Add(area);
+
+            }
+            else
+                DynamicAtlasMgr.S.ReleaseIntegerRectangle(area);
         }
 
+        private void FilterSelfSubAreas(List<IntegerRectangle> areas)
+        {
+            for (int i = areas.Count - 1; i >= 0; i--)
+            {
+                IntegerRectangle filtered = areas[i];
+                for (int j = areas.Count - 1; j >= 0; j--)
+                {
+                    if (i != j)
+                    {
+                        IntegerRectangle area = areas[j];
+                        if (filtered.x >= area.x && filtered.y >= area.y && filtered.right <= area.right && filtered.top <= area.top)
+                        {
+                            DynamicAtlasMgr.S.ReleaseIntegerRectangle(filtered);
+                            IntegerRectangle topOfStack = areas.Pop();
+                            if (i < areas.Count)
+                            {
+                                // Move the one on the top to the freed position
+                                areas[i] = topOfStack;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
     }
 
@@ -308,20 +352,17 @@ namespace GFrame
         private int m_Index;
         private Texture2D m_Texture;
         private List<IntegerRectangle> m_FreeAreasList = new List<IntegerRectangle>();
-        private int m_Width;
-        private int m_Height;
-        private int m_Padding;
+        private int m_Width, m_Height;
 
         public int index => m_Index;
         public Texture2D texture => m_Texture;
         public List<IntegerRectangle> freeAreasList => m_FreeAreasList;
 
-        public DynamicAtlasPage(int index, int width, int height, int padding)//, Color32[] tempColor)
+        public DynamicAtlasPage(int index, int width, int height)//, Color32[] tempColor)
         {
             m_Index = index;
             m_Width = width;
             m_Height = height;
-            m_Padding = padding;
 
             m_Texture = new Texture2D(width, height, DynamicAtlasConfig.kTextureFormat, false, true);
             m_Texture.filterMode = FilterMode.Bilinear;
@@ -361,25 +402,25 @@ namespace GFrame
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        public int FindFreeArea(int width, int height)
+        public int GetFreeAreaIndex(int width, int height, int padding, int pWidth, int pHeight)
         {
             if (width > m_Width || height > m_Height)
             {
                 Debug.LogError("To Large Texture for atlas");
                 return -1;
             }
+
             IntegerRectangle best = DynamicAtlasMgr.S.AllocateIntegerRectangle(m_Width + 1, m_Height + 1, 0, 0);
             int index = -1;
 
-            int paddedWidth = width + m_Padding;
-            int paddedHeight = height + m_Padding;
+            int paddedWidth = width + padding;
+            int paddedHeight = height + padding;
 
-            // IntegerRectangle tempArea = null;
             for (int i = m_FreeAreasList.Count - 1; i >= 0; i--)
             {
                 IntegerRectangle free = m_FreeAreasList[i];
 
-                if (free.x < paddedWidth || free.y < paddedHeight)
+                // if (free.x < width || free.y < height)
                 {
                     if (free.x < best.x && paddedWidth <= free.width && paddedHeight <= free.height)
                     {
@@ -405,8 +446,6 @@ namespace GFrame
 
             return index;
         }
-
-
 
         public void AddFreeArea(IntegerRectangle area)
         {

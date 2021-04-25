@@ -6,7 +6,7 @@ namespace GFrame
 {
     public class DynamicAtlasConfig
     {
-        public static bool kTopFirst = false;
+        // public static bool kTopFirst = false;
         public const TextureFormat kTextureFormat = TextureFormat.ARGB32;
 
         // #if UNITY_ANDROID

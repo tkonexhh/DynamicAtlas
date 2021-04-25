@@ -6,231 +6,252 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DaVikingCode.AssetPacker {
+namespace DaVikingCode.AssetPacker
+{
 
-	public class AssetPacker : MonoBehaviour {
+    public class AssetPacker : MonoBehaviour
+    {
 
-		public UnityEvent OnProcessCompleted;
-		public float pixelsPerUnit = 100.0f;
+        public UnityEvent OnProcessCompleted;
+        public float pixelsPerUnit = 100.0f;
 
-		public bool useCache = false;
-		public string cacheName = "";
-		public int cacheVersion = 1;
-		public bool deletePreviousCacheVersion = true;
+        public bool useCache = false;
+        public string cacheName = "";
+        public int cacheVersion = 1;
+        public bool deletePreviousCacheVersion = true;
 
-		protected Dictionary<string, Sprite> mSprites = new Dictionary<string, Sprite>();
-		protected List<TextureToPack> itemsToRaster = new List<TextureToPack>();
+        protected Dictionary<string, Sprite> mSprites = new Dictionary<string, Sprite>();
+        protected List<TextureToPack> itemsToRaster = new List<TextureToPack>();
 
-		protected bool allow4096Textures = false;
+        protected bool allow4096Textures = false;
 
-		public void AddTextureToPack(string file, string customID = null) {
+        public void AddTextureToPack(string file, string customID = null)
+        {
 
-			itemsToRaster.Add(new TextureToPack(file, customID != null ? customID : Path.GetFileNameWithoutExtension(file)));
-		}
+            itemsToRaster.Add(new TextureToPack(file, customID != null ? customID : Path.GetFileNameWithoutExtension(file)));
+        }
 
-		public void AddTexturesToPack(string[] files) {
+        public void AddTexturesToPack(string[] files)
+        {
 
-			foreach (string file in files)
-				AddTextureToPack(file);
-		}
+            foreach (string file in files)
+                AddTextureToPack(file);
+        }
 
-		public void Process(bool allow4096Textures = false) {
+        public void Process(bool allow4096Textures = false)
+        {
 
-			this.allow4096Textures = allow4096Textures;
+            this.allow4096Textures = allow4096Textures;
 
-			if (useCache) {
+            if (useCache)
+            {
 
-				if (cacheName == "")
-					throw new Exception("No cache name specified");
+                if (cacheName == "")
+                    throw new Exception("No cache name specified");
 
-				string path = Application.persistentDataPath + "/AssetPacker/" + cacheName + "/" + cacheVersion + "/";
+                string path = Application.persistentDataPath + "/AssetPacker/" + cacheName + "/" + cacheVersion + "/";
 
-				bool cacheExist = Directory.Exists(path);
+                bool cacheExist = Directory.Exists(path);
 
-				if (!cacheExist)
-					StartCoroutine(createPack(path));
-				else
-					StartCoroutine(loadPack(path));
-				
-			} else
-				StartCoroutine(createPack());
-			
-		}
+                if (!cacheExist)
+                    StartCoroutine(createPack(path));
+                else
+                    StartCoroutine(loadPack(path));
 
-		protected IEnumerator createPack(string savePath = "") {
+            }
+            else
+                StartCoroutine(createPack());
 
-			if (savePath != "") {
+        }
 
-				if (deletePreviousCacheVersion && Directory.Exists(Application.persistentDataPath + "/AssetPacker/" + cacheName + "/"))
-					foreach (string dirPath in Directory.GetDirectories(Application.persistentDataPath + "/AssetPacker/" + cacheName + "/", "*", SearchOption.AllDirectories))
-						Directory.Delete(dirPath, true);
+        protected IEnumerator createPack(string savePath = "")
+        {
 
-				Directory.CreateDirectory(savePath);
-			}
+            if (savePath != "")
+            {
 
-			List<Texture2D> textures = new List<Texture2D>();
-			List<string> images = new List<string>();
+                if (deletePreviousCacheVersion && Directory.Exists(Application.persistentDataPath + "/AssetPacker/" + cacheName + "/"))
+                    foreach (string dirPath in Directory.GetDirectories(Application.persistentDataPath + "/AssetPacker/" + cacheName + "/", "*", SearchOption.AllDirectories))
+                        Directory.Delete(dirPath, true);
 
-			foreach (TextureToPack itemToRaster in itemsToRaster) {
+                Directory.CreateDirectory(savePath);
+            }
 
-				WWW loader = new WWW("file:///" + itemToRaster.file);
+            List<Texture2D> textures = new List<Texture2D>();
+            List<string> images = new List<string>();
 
-				yield return loader;
+            foreach (TextureToPack itemToRaster in itemsToRaster)
+            {
 
-				textures.Add(loader.texture);
-				images.Add(itemToRaster.id);
-			}
+                WWW loader = new WWW("file:///" + itemToRaster.file);
 
-			int textureSize = allow4096Textures ? 4096 : 2048;
+                yield return loader;
 
-			List<Rect> rectangles = new List<Rect>();
-			for (int i = 0; i < textures.Count; i++)
-				if (textures[i].width > textureSize || textures[i].height > textureSize)
-					throw new Exception("A texture size is bigger than the sprite sheet size!");
-				else
-					rectangles.Add(new Rect(0, 0, textures[i].width, textures[i].height));
+                textures.Add(loader.texture);
+                images.Add(itemToRaster.id);
+            }
 
-			const int padding = 1;
+            int textureSize = allow4096Textures ? 4096 : 2048;
 
-			int numSpriteSheet = 0;
-			while (rectangles.Count > 0) {
+            List<Rect> rectangles = new List<Rect>();
+            for (int i = 0; i < textures.Count; i++)
+                if (textures[i].width > textureSize || textures[i].height > textureSize)
+                    throw new Exception("A texture size is bigger than the sprite sheet size!");
+                else
+                    rectangles.Add(new Rect(0, 0, textures[i].width, textures[i].height));
 
-				Texture2D texture = new Texture2D(textureSize, textureSize, TextureFormat.ARGB32, false);
-				Color32[] fillColor = texture.GetPixels32();
-				for (int i = 0; i < fillColor.Length; ++i)
-					fillColor[i] = Color.clear;
+            const int padding = 1;
 
-				RectanglePacker packer = new RectanglePacker(texture.width, texture.height, padding);
+            int numSpriteSheet = 0;
+            while (rectangles.Count > 0)
+            {
 
-				for (int i = 0; i < rectangles.Count; i++)
-					packer.insertRectangle((int) rectangles[i].width, (int) rectangles[i].height, i);
+                Texture2D texture = new Texture2D(textureSize, textureSize, TextureFormat.ARGB32, false);
+                Color32[] fillColor = texture.GetPixels32();
+                for (int i = 0; i < fillColor.Length; ++i)
+                    fillColor[i] = Color.clear;
 
-				packer.packRectangles();
+                RectanglePacker packer = new RectanglePacker(texture.width, texture.height, padding);
 
-				if (packer.rectangleCount > 0) {
+                for (int i = 0; i < rectangles.Count; i++)
+                    packer.InsertRectangle((int)rectangles[i].width, (int)rectangles[i].height, i);
 
-					texture.SetPixels32(fillColor);
-					IntegerRectangle rect = new IntegerRectangle();
-					List<TextureAsset> textureAssets = new List<TextureAsset>();
+                packer.PackRectangles();
 
-					List<Rect> garbageRect = new List<Rect>();
-					List<Texture2D> garabeTextures = new List<Texture2D>();
-					List<string> garbageImages = new List<string>();
+                if (packer.rectangleCount > 0)
+                {
 
-					for (int j = 0; j < packer.rectangleCount; j++) {
+                    texture.SetPixels32(fillColor);
+                    IntegerRectangle rect = new IntegerRectangle();
+                    List<TextureAsset> textureAssets = new List<TextureAsset>();
 
-						rect = packer.getRectangle(j, rect);
+                    List<Rect> garbageRect = new List<Rect>();
+                    List<Texture2D> garabeTextures = new List<Texture2D>();
+                    List<string> garbageImages = new List<string>();
 
-						int index = packer.getRectangleId(j);
+                    for (int j = 0; j < packer.rectangleCount; j++)
+                    {
 
-						texture.SetPixels32(rect.x, rect.y, rect.width, rect.height, textures[index].GetPixels32());
+                        rect = packer.GetRectangle(j, rect);
 
-						TextureAsset textureAsset = new TextureAsset();
-						textureAsset.x = rect.x;
-						textureAsset.y = rect.y;
-						textureAsset.width = rect.width;
-						textureAsset.height = rect.height;
-						textureAsset.name = images[index];
+                        int index = packer.GetRectangleId(j);
 
-						textureAssets.Add(textureAsset);
+                        texture.SetPixels32(rect.x, rect.y, rect.width, rect.height, textures[index].GetPixels32());
 
-						garbageRect.Add(rectangles[index]);
-						garabeTextures.Add(textures[index]);
-						garbageImages.Add(images[index]);
-					}
+                        TextureAsset textureAsset = new TextureAsset();
+                        textureAsset.x = rect.x;
+                        textureAsset.y = rect.y;
+                        textureAsset.width = rect.width;
+                        textureAsset.height = rect.height;
+                        textureAsset.name = images[index];
 
-					foreach (Rect garbage in garbageRect)
-						rectangles.Remove(garbage);
+                        textureAssets.Add(textureAsset);
 
-					foreach (Texture2D garbage in garabeTextures)
-						textures.Remove(garbage);
+                        garbageRect.Add(rectangles[index]);
+                        garabeTextures.Add(textures[index]);
+                        garbageImages.Add(images[index]);
+                    }
 
-					foreach (string garbage in garbageImages)
-						images.Remove(garbage);
+                    foreach (Rect garbage in garbageRect)
+                        rectangles.Remove(garbage);
 
-					texture.Apply();
+                    foreach (Texture2D garbage in garabeTextures)
+                        textures.Remove(garbage);
 
-					if (savePath != "") {
+                    foreach (string garbage in garbageImages)
+                        images.Remove(garbage);
 
-						File.WriteAllBytes(savePath + "/data" + numSpriteSheet + ".png", texture.EncodeToPNG());
-						File.WriteAllText(savePath + "/data" + numSpriteSheet + ".json", JsonUtility.ToJson(new TextureAssets(textureAssets.ToArray())));
-						++numSpriteSheet;
-					}
+                    texture.Apply();
 
-					foreach (TextureAsset textureAsset in textureAssets)
-						mSprites.Add(textureAsset.name, Sprite.Create(texture, new Rect(textureAsset.x, textureAsset.y, textureAsset.width, textureAsset.height), Vector2.zero, pixelsPerUnit, 0, SpriteMeshType.FullRect));
-				}
+                    if (savePath != "")
+                    {
 
-			}
+                        File.WriteAllBytes(savePath + "/data" + numSpriteSheet + ".png", texture.EncodeToPNG());
+                        File.WriteAllText(savePath + "/data" + numSpriteSheet + ".json", JsonUtility.ToJson(new TextureAssets(textureAssets.ToArray())));
+                        ++numSpriteSheet;
+                    }
 
-			OnProcessCompleted.Invoke();
-		}
+                    foreach (TextureAsset textureAsset in textureAssets)
+                        mSprites.Add(textureAsset.name, Sprite.Create(texture, new Rect(textureAsset.x, textureAsset.y, textureAsset.width, textureAsset.height), Vector2.zero, pixelsPerUnit, 0, SpriteMeshType.FullRect));
+                }
 
-		protected IEnumerator loadPack(string savePath) {
-			
-			int numFiles = Directory.GetFiles(savePath).Length;
+            }
 
-			for (int i = 0; i < numFiles / 2; ++i) {
+            OnProcessCompleted.Invoke();
+        }
 
-				WWW loaderTexture = new WWW("file:///" + savePath + "/data" + i + ".png");
-				yield return loaderTexture;
+        protected IEnumerator loadPack(string savePath)
+        {
 
-				WWW loaderJSON = new WWW("file:///" + savePath + "/data" + i + ".json");
-				yield return loaderJSON;
+            int numFiles = Directory.GetFiles(savePath).Length;
 
-				TextureAssets textureAssets = JsonUtility.FromJson<TextureAssets> (loaderJSON.text);
+            for (int i = 0; i < numFiles / 2; ++i)
+            {
 
-				Texture2D t = loaderTexture.texture; // prevent creating a new Texture2D each time.
-				foreach (TextureAsset textureAsset in textureAssets.assets)
-					mSprites.Add(textureAsset.name, Sprite.Create(t, new Rect(textureAsset.x, textureAsset.y, textureAsset.width, textureAsset.height), Vector2.zero, pixelsPerUnit, 0, SpriteMeshType.FullRect));
-			}
+                WWW loaderTexture = new WWW("file:///" + savePath + "/data" + i + ".png");
+                yield return loaderTexture;
 
-			yield return null;
+                WWW loaderJSON = new WWW("file:///" + savePath + "/data" + i + ".json");
+                yield return loaderJSON;
 
-			OnProcessCompleted.Invoke();
-		}
+                TextureAssets textureAssets = JsonUtility.FromJson<TextureAssets>(loaderJSON.text);
 
-		public void Dispose() {
+                Texture2D t = loaderTexture.texture; // prevent creating a new Texture2D each time.
+                foreach (TextureAsset textureAsset in textureAssets.assets)
+                    mSprites.Add(textureAsset.name, Sprite.Create(t, new Rect(textureAsset.x, textureAsset.y, textureAsset.width, textureAsset.height), Vector2.zero, pixelsPerUnit, 0, SpriteMeshType.FullRect));
+            }
 
-			foreach (var asset in mSprites)
-				Destroy(asset.Value.texture);
+            yield return null;
 
-			mSprites.Clear();
-		}
+            OnProcessCompleted.Invoke();
+        }
 
-		void Destroy() {
+        public void Dispose()
+        {
 
-			Dispose();
-		}
+            foreach (var asset in mSprites)
+                Destroy(asset.Value.texture);
 
-		public Sprite GetSprite(string id) {
+            mSprites.Clear();
+        }
 
-			Sprite sprite = null;
+        void Destroy()
+        {
 
-			mSprites.TryGetValue (id, out sprite);
+            Dispose();
+        }
 
-			return sprite;
-		}
+        public Sprite GetSprite(string id)
+        {
 
-		public Sprite[] GetSprites(string prefix) {
+            Sprite sprite = null;
 
-			List<string> spriteNames = new List<string>();
-			foreach (var asset in mSprites)
-				if (asset.Key.StartsWith(prefix))
-					spriteNames.Add(asset.Key);
+            mSprites.TryGetValue(id, out sprite);
 
-			spriteNames.Sort(StringComparer.Ordinal);
+            return sprite;
+        }
 
-			List<Sprite> sprites = new List<Sprite>();
-			Sprite sprite;
-			for (int i = 0; i < spriteNames.Count; ++i) {
+        public Sprite[] GetSprites(string prefix)
+        {
 
-				mSprites.TryGetValue(spriteNames[i], out sprite);
+            List<string> spriteNames = new List<string>();
+            foreach (var asset in mSprites)
+                if (asset.Key.StartsWith(prefix))
+                    spriteNames.Add(asset.Key);
 
-				sprites.Add(sprite);
-			}
+            spriteNames.Sort(StringComparer.Ordinal);
 
-			return sprites.ToArray();
-		}
-	}
+            List<Sprite> sprites = new List<Sprite>();
+            Sprite sprite;
+            for (int i = 0; i < spriteNames.Count; ++i)
+            {
+
+                mSprites.TryGetValue(spriteNames[i], out sprite);
+
+                sprites.Add(sprite);
+            }
+
+            return sprites.ToArray();
+        }
+    }
 }

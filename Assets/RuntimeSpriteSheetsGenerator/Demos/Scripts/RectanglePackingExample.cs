@@ -104,12 +104,12 @@ public class RectanglePackingExample : MonoBehaviour
         if (mPacker == null)
             mPacker = new RectanglePacker((int)sliderWidth.value, (int)sliderHeight.value, padding);
         else
-            mPacker.reset((int)sliderWidth.value, (int)sliderHeight.value, padding);
+            mPacker.Reset((int)sliderWidth.value, (int)sliderHeight.value, padding);
 
         for (int i = 0; i < RECTANGLE_COUNT; i++)
-            mPacker.insertRectangle((int)mRectangles[i].width, (int)mRectangles[i].height, i);
+            mPacker.InsertRectangle((int)mRectangles[i].width, (int)mRectangles[i].height, i);
 
-        mPacker.packRectangles();
+        mPacker.PackRectangles();
 
         DateTime end = DateTime.Now;
 
@@ -125,7 +125,7 @@ public class RectanglePackingExample : MonoBehaviour
             for (int j = 0; j < mPacker.rectangleCount; j++)
             {
 
-                rect = mPacker.getRectangle(j, rect);
+                rect = mPacker.GetRectangle(j, rect);
 
                 int size = rect.width * rect.height;
 
@@ -135,7 +135,7 @@ public class RectanglePackingExample : MonoBehaviour
 
                 mTexture.SetPixels32(rect.x, rect.y, rect.width, rect.height, tmpColor);
 
-                int index = mPacker.getRectangleId(j);
+                int index = mPacker.GetRectangleId(j);
                 Color color = convertHexToRGBA((uint)(0xFF171703 + (((18 * ((index + 4) % 13)) << 16) + ((31 * ((index * 3) % 8)) << 8) + 63 * (((index + 1) * 3) % 5))));
 
                 size -= 4;
