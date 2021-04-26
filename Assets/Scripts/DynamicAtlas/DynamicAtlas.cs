@@ -8,7 +8,7 @@ namespace GFrame
     {
         private int m_Width, m_Height = 0;
         private int m_Padding = 4;
-        private int m_PackedWidth, m_PackedHeight = 0;
+        // private int m_PackedWidth, m_PackedHeight = 0;
 
         private List<DynamicAtlasPage> m_PageList = new List<DynamicAtlasPage>();
         private List<GetTextureData> m_GetTextureTaskList = new List<GetTextureData>();
@@ -209,7 +209,7 @@ namespace GFrame
             DynamicAtlasPage page = null;
             for (int i = 0; i < m_PageList.Count; i++)
             {
-                int fIndex = m_PageList[i].GetFreeAreaIndex(width, height, m_Padding, m_PackedWidth, m_PackedHeight);
+                int fIndex = m_PageList[i].GetFreeAreaIndex(width, height, m_Padding);
                 if (fIndex >= 0)
                 {
                     page = m_PageList[i];
@@ -244,13 +244,11 @@ namespace GFrame
             if (m_Padding == 0)
                 targetWithPadding = target;
 
-
             for (int i = page.freeAreasList.Count - 1; i >= 0; i--)
             {
                 IntegerRectangle area = page.freeAreasList[i];
                 if (!(x >= area.right || right <= area.x || y >= area.top || top <= area.y))
                 {
-                    // UnityEngine.Debug.LogError(target.x + ":" + area.x);
                     if (targetWithPadding == null)
                         targetWithPadding = DynamicAtlasMgr.S.AllocateIntegerRectangle(target.x, target.y, target.width + m_Padding, target.height + m_Padding);
 
@@ -274,11 +272,11 @@ namespace GFrame
                 page.AddFreeArea(free);
             }
 
-            if (target.right > m_PackedWidth)
-                m_PackedWidth = target.right;
+            // if (target.right > m_PackedWidth)
+            //     m_PackedWidth = target.right;
 
-            if (target.top > m_PackedHeight)
-                m_PackedHeight = target.top;
+            // if (target.top > m_PackedHeight)
+            //     m_PackedHeight = target.top;
         }
 
 
@@ -409,7 +407,7 @@ namespace GFrame
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        public int GetFreeAreaIndex(int width, int height, int padding, int pWidth, int pHeight)
+        public int GetFreeAreaIndex(int width, int height, int padding)
         {
             if (width > m_Width || height > m_Height)
             {
@@ -429,17 +427,17 @@ namespace GFrame
 
                 // if (free.x < width || free.y < height)
                 {
-                    if (free.x < best.x && paddedWidth <= free.width && paddedHeight <= free.height)
+                    if (free.x < best.x && paddedWidth <= free.width && paddedHeight <= free.height)//如果这个Free大小可以容纳目标大小的话
                     {
                         index = i;
-                        if ((paddedWidth == free.width && free.width <= free.height && free.right < m_Width) || (paddedHeight == free.height && free.height <= free.width))
+                        if ((paddedWidth == free.width && free.width <= free.height && free.right < m_Width) || (paddedHeight == free.height && free.height <= free.width))//如果这个区域正好可以放得下
                             break;
                         best = free;
                     }
                     else
                     {
                         // Outside the current packed area, no padding required
-                        if (free.x < best.x && width <= free.width && height <= free.height)
+                        if (free.x < best.x && width <= free.width && height <= free.height)//如果不算padding距离也可以放得下的话，也可以放进去
                         {
                             index = i;
                             if ((width == free.width && free.width <= free.height && free.right < m_Width) || (height == free.height && free.height <= free.width))
