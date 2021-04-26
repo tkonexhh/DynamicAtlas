@@ -7,17 +7,24 @@ namespace GFrame
     public class DynamicAtlas
     {
         private int m_Width, m_Height = 0;
-        private int m_Padding = 3;
+        private int m_Padding = 4;
         private int m_PackedWidth, m_PackedHeight = 0;
 
         private List<DynamicAtlasPage> m_PageList = new List<DynamicAtlasPage>();
         private List<GetTextureData> m_GetTextureTaskList = new List<GetTextureData>();
+        private List<IntegerRectangle> m_WaitAddNewAreaList = new List<IntegerRectangle>();
         private Dictionary<string, SaveTextureData> m_UsingTexture = new Dictionary<string, SaveTextureData>();
 
-
+        private Color32[] m_TempColor;
         public DynamicAtlas(DynamicAtlasGroup group)
         {
             int length = (int)group;
+            m_TempColor = new Color32[length * length];
+            for (int i = 0; i < m_TempColor.Length; i++)
+            {
+                m_TempColor[i] = Color.clear;
+            }
+
             m_Width = length;
             m_Height = length;
             CreateNewPage();
@@ -25,7 +32,7 @@ namespace GFrame
 
         DynamicAtlasPage CreateNewPage()
         {
-            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height);//, m_TempColor);
+            var page = new DynamicAtlasPage(m_PageList.Count, m_Width, m_Height, m_TempColor);
             m_PageList.Add(page);
             return page;
         }
@@ -237,7 +244,7 @@ namespace GFrame
             if (m_Padding == 0)
                 targetWithPadding = target;
 
-            List<IntegerRectangle> results = new List<IntegerRectangle>();
+
             for (int i = page.freeAreasList.Count - 1; i >= 0; i--)
             {
                 IntegerRectangle area = page.freeAreasList[i];
@@ -247,7 +254,7 @@ namespace GFrame
                     if (targetWithPadding == null)
                         targetWithPadding = DynamicAtlasMgr.S.AllocateIntegerRectangle(target.x, target.y, target.width + m_Padding, target.height + m_Padding);
 
-                    GenerateDividedAreas(targetWithPadding, area, results);
+                    GenerateDividedAreas(targetWithPadding, area, m_WaitAddNewAreaList);
                     IntegerRectangle topOfStack = page.freeAreasList.Pop();
                     if (i < page.freeAreasList.Count)
                     {
@@ -260,10 +267,10 @@ namespace GFrame
             if (targetWithPadding != null && targetWithPadding != target)
                 DynamicAtlasMgr.S.ReleaseIntegerRectangle(targetWithPadding);
 
-            FilterSelfSubAreas(results);
-            while (results.Count > 0)
+            FilterSelfSubAreas(m_WaitAddNewAreaList);
+            while (m_WaitAddNewAreaList.Count > 0)
             {
-                var free = results.Pop();
+                var free = m_WaitAddNewAreaList.Pop();
                 page.AddFreeArea(free);
             }
 
@@ -358,7 +365,7 @@ namespace GFrame
         public Texture2D texture => m_Texture;
         public List<IntegerRectangle> freeAreasList => m_FreeAreasList;
 
-        public DynamicAtlasPage(int index, int width, int height)//, Color32[] tempColor)
+        public DynamicAtlasPage(int index, int width, int height, Color32[] tempColor)
         {
             m_Index = index;
             m_Width = width;
@@ -366,7 +373,7 @@ namespace GFrame
 
             m_Texture = new Texture2D(width, height, DynamicAtlasConfig.kTextureFormat, false, true);
             m_Texture.filterMode = FilterMode.Bilinear;
-            // m_Texture.SetPixels32(0, 0, width, height, tempColor);
+            m_Texture.SetPixels32(0, 0, width, height, tempColor);
             m_Texture.Apply(false);
             m_Texture.name = string.Format("DynamicAtlas-{0}*{1}-{2}", width, height, index);
 
